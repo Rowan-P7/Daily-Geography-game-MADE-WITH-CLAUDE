@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas Dash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a single-column "chart room" — rotating wireframe globe up top, one question card at a time, big tappable answers. Single dark theme by choice. */
+:root{
+  --ink:#0c1a1f;        /* page */
+  --deep:#13262d;       /* cards */
+  --line:#24414a;       /* borders, graticule */
+  --chalk:#e9f1ee;      /* text */
+  --mute:#8fa9a6;       /* secondary text */
+  --flare:#ff8a3d;      /* accent */
+  --good:#4fd18b; --bad:#ff5d6c;
+  --display:"Bricolage Grotesque",system-ui,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--ink);color:var(--chalk);font-family:var(--body);font-size:16px;line-height:1.5;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:48px 48px;background-position:-1px -1px;}
+body::before{content:"";position:fixed;inset:0;background:radial-gradient(ellipse at 50% 0%,transparent 0%,var(--ink) 70%);pointer-events:none;opacity:.92}
+.wrap{position:relative;max-width:720px;margin:0 auto;padding:20px 16px 48px;display:flex;flex-direction:column;gap:20px}
+header{display:flex;align-items:center;gap:16px}
+#globe{width:72px;height:72px;flex:none}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,6vw,40px);line-height:1;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--flare)}
+.tag{color:var(--mute);margin:4px 0 0;font-size:14px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--flare);outline-offset:2px}
+
+/* menu */
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.mode{background:var(--deep);border:1px solid var(--line);border-radius:14px;padding:16px;text-align:left;display:flex;flex-direction:column;gap:6px;transition:transform .15s,border-color .15s}
+.mode:hover{border-color:var(--flare);transform:translateY(-2px)}
+.mode b{font-family:var(--display);font-size:20px;font-weight:600}
+.mode small{color:var(--mute);font-size:14px}
+.mode .best{font-family:var(--mono);font-size:12px;color:var(--flare);margin-top:auto;padding-top:6px}
+.mode.feature{grid-column:1/-1;background:linear-gradient(120deg,#2a1a10,var(--deep) 60%);border-color:#5a3a22}
+.how{color:var(--mute);font-size:14px;margin:0}
+kbd{font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--chalk)}
+
+/* hud */
+.hud{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.stat{background:var(--deep);border:1px solid var(--line);border-radius:10px;padding:6px 12px;display:flex;flex-direction:column;min-width:76px}
+.stat i{font-style:normal;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.stat b{font-family:var(--mono);font-size:20px;font-variant-numeric:tabular-nums}
+.stat.streak b{color:var(--flare)}
+.quit{margin-left:auto;background:none;border:1px solid var(--line);border-radius:10px;padding:0 14px;color:var(--mute)}
+.quit:hover{color:var(--chalk)}
+.timer{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.timer div{height:100%;background:var(--flare);width:100%;transform-origin:left}
+
+/* question */
+.card{background:var(--deep);border:1px solid var(--line);border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:20px}
+.kicker{font-family:var(--mono);font-size:12px;color:var(--flare);letter-spacing:.08em;text-transform:uppercase}
+.q{font-family:var(--display);font-weight:600;font-size:clamp(22px,4.6vw,32px);line-height:1.15;margin:0;text-wrap:balance}
+.q em{font-style:normal;color:var(--flare)}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{background:var(--ink);border:2px solid var(--line);border-radius:12px;padding:14px 14px 14px 44px;text-align:left;font-weight:500;font-size:17px;position:relative;min-height:58px;transition:border-color .12s,background .12s}
+.opt::before{content:attr(data-k);position:absolute;left:14px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:12px;color:var(--mute);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+.opt:hover:not(:disabled){border-color:var(--flare)}
+.opt:disabled{cursor:default}
+.opt.right{border-color:var(--good);background:#143a2a}
+.opt.wrong{border-color:var(--bad);background:#3d1820}
+.opt.dim{opacity:.45}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:stretch}
+.vs .opt{padding:22px 16px;text-align:center;font-family:var(--display);font-size:22px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.vs .opt::before{position:static;transform:none;align-self:center}
+.vs .opt .pop{font-family:var(--mono);font-size:14px;color:var(--mute);font-weight:500;min-height:1.5em}
+.vs .or{align-self:center;font-family:var(--mono);color:var(--mute);font-size:13px}
+.feedback{min-height:28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.feedback p{margin:0;font-weight:500}
+.feedback .plus{font-family:var(--mono);color:var(--good)}
+.next{background:var(--flare);color:#1a0d04;border:0;border-radius:10px;padding:10px 18px;font-weight:700}
+.next:hover{filter:brightness(1.08)}
+
+/* results */
+.big{font-family:var(--display);font-weight:800;font-size:clamp(48px,12vw,80px);line-height:1;color:var(--flare);font-variant-numeric:tabular-nums}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.ghost{background:none;border:1px solid var(--line);border-radius:10px;padding:10px 18px;font-weight:700}
+.ghost:hover{border-color:var(--chalk)}
+.review{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.review li{display:grid;grid-template-columns:22px 1fr;gap:8px;padding:8px 10px;border-radius:8px;background:var(--ink);font-size:15px}
+.review li .mk{font-family:var(--mono);font-weight:700}
+.review li.ok .mk{color:var(--good)} .review li.no .mk{color:var(--bad)}
+.review small{color:var(--mute);display:block}
+.hidden{display:none!important}
+.pop-in{animation:pop .25s ease-out}
+@keyframes pop{from{transform:scale(.97);opacity:.6}to{transform:none;opacity:1}}
+.shake{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@media (max-width:480px){.opts{grid-template-columns:1fr}.vs{grid-template-columns:1fr}.vs .or{justify-self:center}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <canvas id="globe" width="144" height="144" aria-hidden="true"></canvas>
+    <div>
+      <h1>Atlas<span>Dash</span></h1>
+      <p class="tag">Ten quick-fire geography questions. Beat the clock, build a streak.</p>
+    </div>
+  </header>
+
+  <!-- MENU -->
+  <section id="menu" style="display:flex;flex-direction:column;gap:16px">
+    <div class="modes" id="modes"></div>
+    <p class="how">15 seconds per question. Faster answers score more, and every 3 in a row bumps your multiplier. Keys: <kbd>1</kbd>–<kbd>4</kbd> to answer, <kbd>←</kbd> <kbd>→</kbd> in Higher or Lower, <kbd>Enter</kbd> for next.</p>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hidden" style="display:flex;flex-direction:column;gap:14px">
+    <div class="hud">
+      <div class="stat"><i>Question</i><b id="hQ">1/10</b></div>
+      <div class="stat"><i>Score</i><b id="hS">0</b></div>
+      <div class="stat streak"><i>Streak</i><b id="hK">0</b></div>
+      <button class="quit" id="quit">Quit</button>
+    </div>
+    <div class="timer"><div id="bar"></div></div>
+    <div class="card" id="card">
+      <div class="kicker" id="kick"></div>
+      <h2 class="q" id="q"></h2>
+      <div id="opts"></div>
+      <div class="feedback"><p id="fb"></p><button class="next hidden" id="next">Next →</button></div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section id="results" class="hidden">
+    <div class="card">
+      <div class="kicker" id="rMode"></div>
+      <div class="big" id="rScore">0</div>
+      <p style="margin:0" id="rLine"></p>
+      <div class="row"><button class="next" id="again">Play again</button><button class="ghost" id="home">Change mode</button></div>
+      <ul class="review" id="rList"></ul>
+    </div>
+  </section>
+</div>
+
+<script>
+/* name | capital | continent | population (millions, ~2024) | currency */
+const RAW=`Afghanistan|Kabul|AS|42|Afghani
+Albania|Tirana|EU|2.8|Lek
+Algeria|Algiers|AF|46|Algerian dinar
+Angola|Luanda|AF|38|Kwanza
+Argentina|Buenos Aires|SA|46|Argentine peso
+Australia|Canberra|OC|27|Australian dollar
+Austria|Vienna|EU|9.1|Euro
+Bangladesh|Dhaka|AS|173|Taka
+Belgium|Brussels|EU|11.8|Euro
+Bhutan|Thimphu|AS|0.79|Ngultrum
+Botswana|Gaborone|AF|2.5|Pula
+Brazil|Brasília|SA|212|Brazilian real
+Cambodia|Phnom Penh|AS|17.6|Riel
+Cameroon|Yaoundé|AF|29|CFA franc
+Canada|Ottawa|NA|41|Canadian dollar
+Chile|Santiago|SA|19.8|Chilean peso
+China|Beijing|AS|1410|Renminbi (yuan)
+Colombia|Bogotá|SA|53|Colombian peso
+Costa Rica|San José|NA|5.1|Colón
+Croatia|Zagreb|EU|3.9|Euro
+Cuba|Havana|NA|11|Cuban peso
+Czechia|Prague|EU|10.7|Czech koruna
+Denmark|Copenhagen|EU|6|Danish krone
+DR Congo|Kinshasa|AF|109|Congolese franc
+Ecuador|Quito|SA|18.1|US dollar
+Egypt|Cairo|AF|116|Egyptian pound
+Estonia|Tallinn|EU|1.37|Euro
+Ethiopia|Addis Ababa|AF|129|Birr
+Fiji|Suva|OC|0.93|Fijian dollar
+Finland|Helsinki|EU|5.6|Euro
+France|Paris|EU|66|Euro
+Germany|Berlin|EU|84|Euro
+Ghana|Accra|AF|34|Cedi
+Greece|Athens|EU|10.4|Euro
+Honduras|Tegucigalpa|NA|10.8|Lempira
+Hungary|Budapest|EU|9.6|Forint
+Iceland|Reykjavík|EU|0.39|Icelandic króna
+India|New Delhi|AS|1450|Indian rupee
+Iran|Tehran|AS|91|Iranian rial
+Iraq|Baghdad|AS|46|Iraqi dinar
+Ireland|Dublin|EU|5.3|Euro
+Italy|Rome|EU|59|Euro
+Jamaica|Kingston|NA|2.8|Jamaican dollar
+Japan|Tokyo|AS|124|Yen
+Jordan|Amman|AS|11.5|Jordanian dinar
+Kenya|Nairobi|AF|56|Kenyan shilling
+Laos|Vientiane|AS|7.8|Kip
+Latvia|Riga|EU|1.87|Euro
+Lebanon|Beirut|AS|5.8|Lebanese pound
+Libya|Tripoli|AF|7.4|Libyan dinar
+Lithuania|Vilnius|EU|2.89|Euro
+Madagascar|Antananarivo|AF|32|Ariary
+Malaysia|Kuala Lumpur|AS|35|Ringgit
+Malta|Valletta|EU|0.55|Euro
+Mexico|Mexico City|NA|131|Mexican peso
+Mongolia|Ulaanbaatar|AS|3.5|Tögrög
+Morocco|Rabat|AF|38|Moroccan dirham
+Mozambique|Maputo|AF|34.6|Metical
+Myanmar|Naypyidaw|AS|54.5|Kyat
+Namibia|Windhoek|AF|3|Namibian dollar
+Nepal|Kathmandu|AS|29.7|Nepalese rupee
+Netherlands|Amsterdam|EU|18|Euro
+New Zealand|Wellington|OC|5.2|New Zealand dollar
+Nigeria|Abuja|AF|233|Naira
+Norway|Oslo|EU|5.6|Norwegian krone
+Oman|Muscat|AS|5.3|Omani rial
+Pakistan|Islamabad|AS|251|Pakistani rupee
+Papua New Guinea|Port Moresby|OC|10.6|Kina
+Paraguay|Asunción|SA|6.9|Guaraní
+Peru|Lima|SA|34|Sol
+Philippines|Manila|AS|116|Philippine peso
+Poland|Warsaw|EU|38.5|Złoty
+Portugal|Lisbon|EU|10.4|Euro
+Qatar|Doha|AS|3|Qatari riyal
+Romania|Bucharest|EU|19|Romanian leu
+Rwanda|Kigali|AF|14.3|Rwandan franc
+Saudi Arabia|Riyadh|AS|34|Saudi riyal
+Senegal|Dakar|AF|18.5|CFA franc
+Serbia|Belgrade|EU|6.7|Serbian dinar
+Slovakia|Bratislava|EU|5.4|Euro
+Slovenia|Ljubljana|EU|2.1|Euro
+South Africa|Pretoria|AF|63|Rand
+South Korea|Seoul|AS|51.7|Won
+Spain|Madrid|EU|48|Euro
+Sweden|Stockholm|EU|10.6|Swedish krona
+Switzerland|Bern|EU|8.9|Swiss franc
+Tanzania|Dodoma|AF|68.6|Tanzanian shilling
+Thailand|Bangkok|AS|71.7|Baht
+Tunisia|Tunis|AF|12.3|Tunisian dinar
+Uganda|Kampala|AF|50|Ugandan shilling
+United Arab Emirates|Abu Dhabi|AS|11|UAE dirham
+United Kingdom|London|EU|69|Pound sterling
+United States|Washington, D.C.|NA|340|US dollar
+Uruguay|Montevideo|SA|3.4|Uruguayan peso
+Uzbekistan|Tashkent|AS|36.4|Som
+Venezuela|Caracas|SA|28.4|Bolívar
+Vietnam|Hanoi|AS|101|Đồng
+Zambia|Lusaka|AF|21|Zambian kwacha`;
+const C=RAW.split("\n").map(l=>{const[n,c,k,p,m]=l.split("|");return{n,c,k,p:+p,m}});
+const CONT={AF:"Africa",AS:"Asia",EU:"Europe",NA:"North America",SA:"South America",OC:"Oceania"};
+
+const MODES=[
+ {id:"mix",name:"World Tour",desc:"A bit of everything: capitals, continents, currencies and population.",feature:true},
+ {id:"cap",name:"Capitals",desc:"Name the capital city."},
+ {id:"rev",name:"Reverse Capitals",desc:"Which country is this city the capital of?"},
+ {id:"hl",name:"Higher or Lower",desc:"Pick the country with more people."},
+ {id:"cont",name:"Continents",desc:"Which continent is this country in?"},
+ {id:"cur",name:"Currencies",desc:"Match the country to its money."}
+];
+const ROUNDS=10, TIME=15000;
+
+const $=id=>document.getElementById(id);
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const fmtPop=p=>p>=1000?(p/1000).toFixed(2).replace(/\.?0+$/,"")+" billion":p>=1?(Math.round(p*10)/10)+" million":Math.round(p*1000)+",000";
+function pickOthers(country,key,n){
+  const pool=shuffle([...new Set(C.filter(x=>x[key]!==country[key]).map(x=>x[key]))]);
+  // prefer distractors from the same continent so it isn't too easy
+  const near=shuffle([...new Set(C.filter(x=>x.k===country.k&&x[key]!==country[key]).map(x=>x[key]))]);
+  const out=[];for(const v of [...near.slice(0,2),...pool]){if(!out.includes(v))out.push(v);if(out.length===n)break}
+  return out;
+}
+
+function makeQ(type,used){
+  let c;do{c=rnd(C)}while(used.has(c.n+type)&&used.size<C.length);used.add(c.n+type);
+  if(type==="cap"){return{kind:"Capitals",html:`What is the capital of <em>${c.n}</em>?`,opts:shuffle([c.c,...pickOthers(c,"c",3)]),ans:c.c,note:`${c.c} is the capital of ${c.n}.`}}
+  if(type==="rev"){return{kind:"Reverse Capitals",html:`<em>${c.c}</em> is the capital of which country?`,opts:shuffle([c.n,...pickOthers(c,"n",3)]),ans:c.n,note:`${c.c} is the capital of ${c.n}.`}}
+  if(type==="cont"){const o=shuffle(Object.values(CONT).filter(v=>v!==CONT[c.k])).slice(0,3);return{kind:"Continents",html:`Which continent is <em>${c.n}</em> in?`,opts:shuffle([CONT[c.k],...o]),ans:CONT[c.k],note:`${c.n} is in ${CONT[c.k]}.`}}
+  if(type==="cur"){const others=shuffle([...new Set(C.filter(x=>x.m!==c.m).map(x=>x.m))]).slice(0,3);return{kind:"Currencies",html:`Which currency is used in <em>${c.n}</em>?`,opts:shuffle([c.m,...others]),ans:c.m,note:`${c.n} uses the ${c.m}.`}}
+  if(type==="hl"){let b;do{b=rnd(C)}while(b===c||Math.max(c.p,b.p)/Math.min(c.p,b.p)<1.25);
+    const big=c.p>b.p?c:b;return{kind:"Higher or Lower",html:`Which country has <em>more people</em>?`,vs:[c,b],opts:[c.n,b.n],ans:big.n,note:`${c.n}: ${fmtPop(c.p)} · ${b.n}: ${fmtPop(b.p)}`}}
+}
+
+/* best scores */
+const store={get(k){try{return +localStorage.getItem("atlasdash-"+k)||0}catch(e){return 0}},set(k,v){try{localStorage.setItem("atlasdash-"+k,v)}catch(e){}}};
+
+function renderMenu(){
+  $("modes").innerHTML=MODES.map(m=>`<button class="mode${m.feature?" feature":""}" data-m="${m.id}"><b>${m.name}</b><small>${m.desc}</small><span class="best">${store.get(m.id)?"Best: "+store.get(m.id).toLocaleString():"No score yet"}</span></button>`).join("");
+  $("modes").querySelectorAll(".mode").forEach(b=>b.onclick=()=>start(b.dataset.m));
+}
+function show(id){["menu","game","results"].forEach(s=>$(s).classList.toggle("hidden",s!==id))}
+
+let G=null,tick=null;
+function start(mode){
+  const used=new Set();const types=["cap","rev","hl","cont","cur"];
+  const qs=[];for(let i=0;i<ROUNDS;i++)qs.push(makeQ(mode==="mix"?types[(i+Math.floor(Math.random()*5))%5]:mode,used));
+  G={mode,qs,i:0,score:0,streak:0,best:0,log:[],locked:false};
+  show("game");ask();
+}
+function mult(){return 1+Math.floor(G.streak/3)*0.5}
+function ask(){
+  const q=G.qs[G.i];G.locked=false;
+  $("hQ").textContent=`${G.i+1}/${ROUNDS}`;$("hS").textContent=G.score.toLocaleString();$("hK").textContent=G.streak+(mult()>1?` ×${mult()}`:"");
+  $("kick").textContent=q.kind;$("q").innerHTML=q.html;$("fb").textContent="";$("next").classList.add("hidden");
+  const box=$("opts");
+  if(q.vs){box.className="vs";box.innerHTML=`<button class="opt" data-k="←" data-v="${q.vs[0].n}">${q.vs[0].n}<span class="pop"></span></button><span class="or">or</span><button class="opt" data-k="→" data-v="${q.vs[1].n}">${q.vs[1].n}<span class="pop"></span></button>`}
+  else{box.className="opts";box.innerHTML=q.opts.map((o,i)=>`<button class="opt" data-k="${i+1}" data-v="${o}">${o}</button>`).join("")}
+  box.querySelectorAll(".opt").forEach(b=>b.onclick=()=>answer(b.dataset.v));
+  $("card").classList.remove("pop-in");void $("card").offsetWidth;$("card").classList.add("pop-in");
+  G.t0=performance.now();clearInterval(tick);
+  tick=setInterval(()=>{const left=Math.max(0,1-(performance.now()-G.t0)/TIME);$("bar").style.transform=`scaleX(${left})`;$("bar").style.background=left<.3?"var(--bad)":"var(--flare)";if(left===0)answer(null)},50);
+}
+function answer(v){
+  if(G.locked)return;G.locked=true;clearInterval(tick);
+  const q=G.qs[G.i],ok=v===q.ans,el=performance.now()-G.t0;
+  let pts=0;
+  if(ok){G.streak++;G.best=Math.max(G.best,G.streak);pts=Math.round((100+Math.round(100*Math.max(0,1-el/TIME)))*mult());G.score+=pts}
+  else G.streak=0;
+  $("opts").querySelectorAll(".opt").forEach(b=>{b.disabled=true;if(b.dataset.v===q.ans)b.classList.add("right");else if(b.dataset.v===v)b.classList.add("wrong");else b.classList.add("dim")});
+  if(q.vs)$("opts").querySelectorAll(".opt").forEach((b,i)=>b.querySelector(".pop").textContent=fmtPop(q.vs[i].p));
+  if(!ok)$("card").classList.add("shake"),setTimeout(()=>$("card").classList.remove("shake"),300);
+  $("fb").innerHTML=ok?`Correct. <span class="plus">+${pts}</span>`:(v===null?"Out of time. ":"Not quite. ")+`<span style="color:var(--mute)">${q.note}</span>`;
+  if(ok&&!q.vs)$("fb").innerHTML+=` <span style="color:var(--mute)">${q.note}</span>`;
+  if(ok&&q.vs)$("fb").innerHTML+=` <span style="color:var(--mute)">${q.note}</span>`;
+  $("hS").textContent=G.score.toLocaleString();$("hK").textContent=G.streak+(mult()>1?` ×${mult()}`:"");
+  G.log.push({ok,q:q.html.replace(/<[^>]+>/g,""),ans:q.ans,v});
+  $("next").textContent=G.i===ROUNDS-1?"See results →":"Next →";$("next").classList.remove("hidden");$("next").focus();
+}
+function next(){G.i++;if(G.i<ROUNDS)ask();else finish()}
+function finish(){
+  show("results");const m=MODES.find(x=>x.id===G.mode),right=G.log.filter(l=>l.ok).length,prev=store.get(G.mode);
+  if(G.score>prev)store.set(G.mode,G.score);
+  $("rMode").textContent=m.name+(G.score>prev&&G.score>0?" · New best!":"");
+  $("rScore").textContent=G.score.toLocaleString();
+  const verdict=right===10?"Perfect run. Cartographer status.":right>=8?"Seriously well travelled.":right>=5?"Solid. A few more trips and you'll ace it.":"The world is big. Go again.";
+  $("rLine").textContent=`${right} of ${ROUNDS} correct · best streak ${G.best}. ${verdict}`;
+  $("rList").innerHTML=G.log.map(l=>`<li class="${l.ok?"ok":"no"}"><span class="mk">${l.ok?"✓":"✗"}</span><span>${l.q}<small>Answer: ${l.ans}${!l.ok?(l.v?` · you said ${l.v}`:" · timed out"):""}</small></span></li>`).join("");
+  $("again").focus();
+}
+$("next").onclick=next;$("again").onclick=()=>start(G.mode);$("home").onclick=()=>{renderMenu();show("menu")};
+$("quit").onclick=()=>{clearInterval(tick);renderMenu();show("menu")};
+document.addEventListener("keydown",e=>{
+  if($("game").classList.contains("hidden"))return;
+  if(G.locked){if(e.key==="Enter"&&document.activeElement!==$("next")){e.preventDefault();next()}return}
+  const btns=[...$("opts").querySelectorAll(".opt")];
+  const map={"1":0,"2":1,"3":2,"4":3,"ArrowLeft":0,"ArrowRight":1};
+  if(e.key in map&&btns[map[e.key]]){e.preventDefault();answer(btns[map[e.key]].dataset.v)}
+});
+
+/* rotating wireframe globe */
+(function(){
+  const cv=$("globe"),x=cv.getContext("2d"),R=64,cx=72,cy=72,tilt=-0.4;
+  const still=matchMedia("(prefers-reduced-motion: reduce)").matches;let rot=0;
+  function proj(lat,lon){const la=lat*Math.PI/180,lo=lon*Math.PI/180+rot;
+    let X=Math.cos(la)*Math.sin(lo),Y=Math.sin(la),Z=Math.cos(la)*Math.cos(lo);
+    const y2=Y*Math.cos(tilt)-Z*Math.sin(tilt),z2=Y*Math.sin(tilt)+Z*Math.cos(tilt);return[cx+X*R,cy-y2*R,z2]}
+  function line(pts){x.beginPath();let pen=false;for(const[a,b,z]of pts){if(z<0){pen=false;continue}pen?x.lineTo(a,b):x.moveTo(a,b);pen=true}x.stroke()}
+  function draw(){x.clearRect(0,0,144,144);
+    x.fillStyle="#13262d";x.beginPath();x.arc(cx,cy,R,0,7);x.fill();
+    x.lineWidth=1.2;x.strokeStyle="#2f5560";
+    for(let lon=0;lon<360;lon+=20){const p=[];for(let lat=-90;lat<=90;lat+=5)p.push(proj(lat,lon));line(p)}
+    for(let lat=-60;lat<=60;lat+=30){const p=[];for(let lon=0;lon<=360;lon+=5)p.push(proj(lat,lon));line(p)}
+    x.strokeStyle="#ff8a3d";x.lineWidth=2;const eq=[];for(let lon=0;lon<=360;lon+=5)eq.push(proj(0,lon));line(eq);
+    // Manchester pin
+    const[a,b,z]=proj(53.48,-2.24);if(z>0){x.fillStyle="#ff8a3d";x.beginPath();x.arc(a,b,4,0,7);x.fill()}
+    x.strokeStyle="#4a7480";x.lineWidth=2;x.beginPath();x.arc(cx,cy,R,0,7);x.stroke();
+    rot+=0.008;if(!still)requestAnimationFrame(draw)}
+  draw();
+})();
+renderMenu();
+</script>
+</body>
+</html>
