@@ -1,11 +1,22 @@
 # Atlas Dash
 
-A quick-fire geography quiz game in a single HTML file. Ten questions per round, 15 seconds each, with streak multipliers.
+A geography game played out on a living, animated world map. Everything is in a single `index.html` file: open it in any browser, no install needed.
 
-**Modes:** World Tour (mixed), Capitals, Reverse Capitals, Higher or Lower (population), Continents, Currencies.
+## Modes
 
-**Controls:** click, or `1`–`4` to answer, `←` `→` in Higher or Lower, `Enter` for next.
+- **Expedition**: type any answer that fits the prompt. The rarer your answer, the further your plane flies from England, from Italy all the way to Australia.
+- **Pinpoint**: drop a pin where a city or landmark is, then see how far off you were.
+- **Sketch**: draw a country from memory and get an accuracy percentage, with your drawing laid over the real border.
+- **Border Hop**: get from one country to another by naming neighbours. Fewer hops, more points.
+- **Fill the Map**: name every country in a region before time runs out.
+- **Match Four**: sixteen tiles, four countries. Match each country's flag, outline, name and a fact such as GDP, HDI, average temperature or passport power.
 
-## Play
+Controls: Enter to submit or continue, any key or tap to skip an animation, Esc to quit.
 
-Open `index.html` in any browser. No build step or dependencies.
+## Data sources
+
+- Map: Natural Earth, via world-atlas (public domain)
+- Flags: flag-icons (MIT)
+- Country facts: world-countries; GDP: IMF 2026 estimates; HDI: UNDP Human Development Report 2025; temperatures: Wikipedia list of countries by average yearly temperature; passport power: Henley Passport Index 2026
+
+Built with Claude.
